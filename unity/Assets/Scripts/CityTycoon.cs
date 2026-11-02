@@ -16,8 +16,8 @@ public class CityTycoon : MonoBehaviour
     [Serializable] class ActionRequest { public string action, requestId; public int value; }
     [Serializable] class ErrorResponse { public string error; }
 
-    string address = "http://192.168.1.10:8787", playerName = "Nguoi choi", roomCode = "", bid = "10";
-    string message = "Nhap dia chi may chu hien trong Terminal. Hai may phai cung Wi-Fi.";
+    string address = "http://127.0.0.1:8787", playerName = "Nguoi choi", roomCode = "", bid = "10";
+    string message = "Cung Mac: dung 127.0.0.1. May khac: nhap IP Wi-Fi cua may chu. Ma phong duoc tao sau khi bam TAO PHONG.";
     Identity identity;
     State state;
     bool pending;
@@ -28,6 +28,7 @@ public class CityTycoon : MonoBehaviour
     Camera camera3D;
     float yaw = 40, zoom = 23;
     Vector2 logScroll;
+    Shader surfaceShader;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Boot() { if (FindFirstObjectByType<CityTycoon>() == null) new GameObject("City Tycoon").AddComponent<CityTycoon>(); }
@@ -35,6 +36,7 @@ public class CityTycoon : MonoBehaviour
     void Start()
     {
         Application.targetFrameRate = 60;
+        Application.runInBackground = true;
         Screen.orientation = ScreenOrientation.LandscapeLeft;
         camera3D = Camera.main;
         if (camera3D == null) { camera3D = new GameObject("Camera").AddComponent<Camera>(); camera3D.tag = "MainCamera"; }
@@ -64,9 +66,16 @@ public class CityTycoon : MonoBehaviour
             tokens[i].SetActive(false);
         }
         UpdateCamera(); StartCoroutine(Poll());
+        Debug.Log("CITY_READY tiles=40 shader=" + surfaceShader.name);
+        if(Array.IndexOf(Environment.GetCommandLineArgs(), "--lan-smoke-test") >= 0) StartCoroutine(SmokeTest());
     }
 
-    Material Material(Color color) { var m = new Material(Shader.Find("Standard")); m.color = color; return m; }
+    Material Material(Color color)
+    {
+        if(surfaceShader == null) surfaceShader = Resources.Load<Shader>("CitySurface");
+        if(surfaceShader == null || !surfaceShader.isSupported) throw new InvalidOperationException("CitySurface shader is missing or unsupported.");
+        var m = new Material(surfaceShader); m.color = color; return m;
+    }
     GameObject Cube(string name,Vector3 p,Vector3 s,Color c) { var o=GameObject.CreatePrimitive(PrimitiveType.Cube);o.name=name;o.transform.position=p;o.transform.localScale=s;o.GetComponent<Renderer>().material=Material(c);return o; }
     Vector3 Position(int i)
     {
@@ -95,7 +104,11 @@ public class CityTycoon : MonoBehaviour
             req.downloadHandler=new DownloadHandlerBuffer();req.timeout=8;
             if(json!=null) { req.uploadHandler=new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));req.SetRequestHeader("Content-Type","application/json"); }
             if(identity!=null)req.SetRequestHeader("Authorization","Bearer "+identity.token);
-            yield return req.SendWebRequest();
+            UnityWebRequestAsyncOperation operation = null;
+            try { operation = req.SendWebRequest(); }
+            catch(Exception error) { message = "Khong the ket noi: " + error.Message; Debug.LogWarning(message); }
+            if(operation == null) yield break;
+            yield return operation;
             if(req.result!=UnityWebRequest.Result.Success)
             {
                 var error=req.downloadHandler.text;
@@ -108,10 +121,13 @@ public class CityTycoon : MonoBehaviour
     IEnumerator Connect(bool create)
     {
         pending=true;
-        yield return Request(create?"/rooms":"/rooms/"+roomCode.Trim().ToUpperInvariant()+"/join","POST",JsonUtility.ToJson(new NameRequest{name=playerName}),text=>{
-            identity=JsonUtility.FromJson<Identity>(text);roomCode=identity.room;
-        });
-        pending=false;
+        try
+        {
+            yield return Request(create?"/rooms":"/rooms/"+roomCode.Trim().ToUpperInvariant()+"/join","POST",JsonUtility.ToJson(new NameRequest{name=playerName}),text=>{
+                identity=JsonUtility.FromJson<Identity>(text);roomCode=identity.room;
+            });
+        }
+        finally { pending=false; }
     }
     IEnumerator Poll()
     {
@@ -126,8 +142,15 @@ public class CityTycoon : MonoBehaviour
     {
         pending=true;
         var data=new ActionRequest{action=action,value=value,requestId=Guid.NewGuid().ToString()};
-        yield return Request("/rooms/"+identity.room+"/commands","POST",JsonUtility.ToJson(data),text=>Apply(JsonUtility.FromJson<State>(text)));
-        pending=false;
+        try { yield return Request("/rooms/"+identity.room+"/commands","POST",JsonUtility.ToJson(data),text=>Apply(JsonUtility.FromJson<State>(text))); }
+        finally { pending=false; }
+    }
+    IEnumerator SmokeTest()
+    {
+        bool connected=false;
+        yield return Request("/health","GET",null,text=>connected=text.Contains("\"ok\":true"));
+        if(connected) { Debug.Log("CITY_SMOKE_OK tiles=40 LAN_HTTP_OK"); Application.Quit(0); }
+        else { Debug.LogError("CITY_SMOKE_FAILED " + message); Application.Quit(1); }
     }
     void OnGUI()
     {

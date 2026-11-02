@@ -32,7 +32,17 @@ Máy phát triển cần Unity Hub và Unity 6. Dự án dùng Editor `6000.0.85
 4. Chạy thêm một bản game, hoặc bản trên điện thoại cùng Wi-Fi. Nhập cùng địa chỉ và mã phòng để tham gia.
 5. Trong **Build Profiles**, thêm scene Main vào danh sách scene. Chọn Android hoặc iOS.
 
-Prototype dùng HTTP LAN và tải trạng thái mỗi 0,75 giây để tránh phụ thuộc dịch vụ có phí. Trong Player Settings của bản thử, cho phép tải qua HTTP (Allow downloads over HTTP). Trên iOS cần cấu hình quyền mạng nội bộ `NSLocalNetworkUsageDescription` và ngoại lệ HTTP phù hợp trong bản Xcode xuất ra. Chỉ áp dụng ngoại lệ cho bản thử LAN. Chưa xác minh trên thiết bị thật.
+Prototype dùng HTTP LAN và tải trạng thái mỗi 0,75 giây để tránh phụ thuộc dịch vụ có phí. Cấu hình và bước build đã cho phép HTTP cho bản thử LAN. Trên iOS cần cấu hình quyền mạng nội bộ `NSLocalNetworkUsageDescription` và ngoại lệ HTTP phù hợp trong bản Xcode xuất ra. Chỉ dùng trên mạng nội bộ tin cậy. Chưa xác minh trên điện thoại thật.
+
+## Thử hai người trên cùng Mac
+
+1. Bật máy chủ bằng `npm start` trong thư mục `server`.
+2. Trong Unity mở scene Main, bấm Play.
+3. Build And Run bản macOS vào `unity/Builds/Mac` để có cửa sổ thứ hai.
+4. Cả hai cửa sổ dùng địa chỉ mặc định `http://127.0.0.1:8787`.
+5. Một cửa sổ tạo phòng; cửa sổ còn lại nhập mã phòng vừa được tạo rồi vào phòng. Mã phòng không phải số cổng `8787`.
+
+Shader bàn cờ nằm trong `Assets/Resources/CitySurface.shader` để luôn có trong bản build. Các lần sửa bản build cần build lại app; mở lại app cũ không cập nhật mã mới.
 
 Xây bản iOS cần Xcode trên Mac và ký ứng dụng. Hình thức chia sẻ iOS/TestFlight và tài khoản nhà phát triển là hạng mục riêng, không được cam kết miễn phí trong prototype này.
 
